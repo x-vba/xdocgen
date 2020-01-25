@@ -2,7 +2,7 @@
 
 ## Description
 
-XDocGen is a utility tool used to generate documentation from VBA source code.
+[XDocGen](http://x-vba.com/xdocgen) is a utility tool used to generate documentation from VBA source code.
 It uses a basic tag syntax which you can place within your source code, and will
 generate JSON documentation based off these tags and the procedures in the
 Module.
