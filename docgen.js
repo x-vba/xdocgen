@@ -1,5 +1,6 @@
 "use strict";
 
+// Version 1.1.0
 
 /**
  * This function takes VBA source code and converts the relevant features and
@@ -74,7 +75,7 @@ function getVbaFunctionAndSubProcedures(vbaSourceCode) {
  * complete documentation Object with relevant details from the XDocGen tags.
  * 
  * @author Anthony Mancini
- * @version 1.0.0
+ * @version 1.1.0
  * @license MIT
  * @param {string} vbaProcedureCode is the source code of a single procedure
  * @returns {Object} a partially completed documentation Object. It's partially
@@ -145,6 +146,10 @@ function generateVbaProcedureDocumentationObject(vbaProcedureCode) {
 		typePart = "Variant";
 	
 	documentationObject["Type"] = typePart;
+	
+	
+	// Adding the procedure source code
+	documentationObject["Source"] = vbaProcedureCode;
 	
 
 	return Object.assign(documentationObject, generateXDocGenTagsObject(vbaProcedureCode)) 
