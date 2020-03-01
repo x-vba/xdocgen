@@ -1,6 +1,6 @@
 "use strict";
 
-// Version 1.1.0
+// Version 1.2.0
 
 /**
  * This function takes VBA source code and converts the relevant features and
@@ -50,21 +50,20 @@ function vbaDocGen(vbaSourceCode) {
 
 /**
  * This function takes a VBA source code string and returns an Array of strings
- * of the Procedures in the source code. Currently this function only supports
- * Function and Sub procedures.
+ * of the Procedures in the source code. Currently this function supports
+ * Functions, Subs, and Properties
  * 
  * @author Anthony Mancini
- * @version 1.0.0
+ * @version 1.1.0
  * @license MIT
- * @todo Add support for other procedures besides Function and Sub such as
- * Properties and Operators
+ * @todo Add support for other procedures like Operators
  * @param {string} vbaSourceCode is the source code from a VBA module
  * @returns {Array} an array of strings containing individual procedures (such
  * as Functions and Subs)
  */
 function getVbaFunctionAndSubProcedures(vbaSourceCode) {
 	// Creating a Regex to match all Functions and Subroutines
-	let procedureRegex = /((Public|Private|Friend)\s){0,1}(Static\s){0,1}(Function|Sub)\s{0,1}[a-zA-Z0-9_]*?\s{0,1}\([\S\s]*?End\s(Function|Sub)/gmi
+	let procedureRegex = /((Public|Private|Friend)\s){0,1}(Static\s){0,1}(Function|Sub|Property\sGet|Property\sLet|Property\sSet)\s{0,1}[a-zA-Z0-9_]*?\s{0,1}\([\S\s]*?End\s(Function|Sub|Property)/gmi
 	
 	return vbaSourceCode.match(procedureRegex)
 }
@@ -75,7 +74,7 @@ function getVbaFunctionAndSubProcedures(vbaSourceCode) {
  * complete documentation Object with relevant details from the XDocGen tags.
  * 
  * @author Anthony Mancini
- * @version 1.1.0
+ * @version 1.1.1
  * @license MIT
  * @param {string} vbaProcedureCode is the source code of a single procedure
  * @returns {Object} a partially completed documentation Object. It's partially
@@ -129,21 +128,42 @@ function generateVbaProcedureDocumentationObject(vbaProcedureCode) {
 		procedurePart = "Function";
 	} else if (procedureDetailsArray.includes("sub")) {
 		procedurePart = "Sub";
+	} else if (procedureDetailsArray.includes("property")) {
+		procedurePart = "Property";
 	}
 	
 	documentationObject["Procedure"] = procedurePart;
 	
+	// For Properties, determining if they are Getters, Letters, or Setters
+	if (procedurePart === "Property") {
+		let propertyType = procedureDetailsArray[1].substr(0, 1).toUpperCase() + procedureDetailsArray[1].substr(1, procedureDetailsArray[1].length);
+		documentationObject["Property"] = propertyType;
+		
+		// Modifying the name in cases of Properties so that the Get and Let don't
+		// overwrite each other in the documentation object
+		documentationObject["Name"] = `${documentationObject["Name"]}(${propertyType})`
+	}
 	
 	// Getting the return type of the function
 	let typePart = vbaProcedureCode.split(")")[1];
-	if (typePart.toLowerCase().includes(" _"))
-		typePart = typePart.split("\n")[1].trim();
-		typePart = typePart.split("\n")[0].trim();
 	
-	if (typePart.toLowerCase().includes("as "))
+	// Could use a bit of refactoring, as a little complicated now, but handles
+	// cases where the return type is on a seperate line as the As, such as As _
+	if (typePart.split("\n")[0].includes(" _")) {
+		typePart = typePart.split("\n")[1].trim();
+	} else if (typePart.split("\n")[0].toLowerCase().includes("as ")) {
 		typePart = typePart.split(/As\s/gmi)[1].trim();
-	else
+	} else {
 		typePart = "Variant";
+	}
+	
+	if (typePart.includes("\n")) {
+		typePart = typePart.split("\n")[0].trim();
+	}
+	
+	if (typePart.toLowerCase().includes("as ")) {
+		typePart = typePart.split(/As\s/gmi)[1].trim();
+	}
 	
 	documentationObject["Type"] = typePart;
 	
@@ -302,9 +322,6 @@ function adjustDocumentationParameters(documentationObject, parameterObject) {
 		argumentName = argumentName.split("(").join("").split(")").join("");
 		let argumentDescription = documentationObject["Param"].substr(documentationObject["Param"].indexOf(" ") + 1, documentationObject["Param"].length);
 		
-		//console.log(argumentName);
-		//console.log(parameterObject);
-		
 		try {
 			documentationObject["Param"] = Object.assign(parameterObject[argumentName], {Description: argumentDescription})
 		} catch (e) {
@@ -318,22 +335,6 @@ function adjustDocumentationParameters(documentationObject, parameterObject) {
 
 
 /**
- * This function regexes out Property procedures. Probably will need
- * different doc gen for this. Generally since the Function and Sub regex is
- * robust enough, currently properties should not mess up the doc gen as they
- * will most likely be skipped 
- */
-function getVbaPropertyProcedures() {}
-
-
-/**
- * Same as the above function. Fortunately i dont think Operator and Properties
- * are used that often
- */
-function getVbaOperatorProcedures() {}
-
-
-/**
  * This function generates the Module Level tag documentation object
  *
  * @author Anthony Mancini
@@ -341,16 +342,11 @@ function getVbaOperatorProcedures() {}
  * @license MIT
  * @todo clean up the code names, and perhaps move some of this stuff to a class since I
  * am reusing a bunch of code here, and especially the regexs and the tag doc generation.
- * the tag doc generation should very likely be in a different function. Definitely consider
- * using a class. Unfortunately its the tradeoff now between segementing the code and reusing the
- * code. Testability is likey to be fine either way, but there is the potential for spagetti.
- * if anyting perhaps merge this function with the above function as that would retain the
- * segmentation while preventing some spagetti issues. Actually ive set it up
  * @param {string} vbaSourceCode is the VBA source code
  * @returns {Object} a Module Documentation Object
  */
 function generateVbaModuleDocumentationObject(vbaSourceCode) {
-	let procedureRegex = /((Public|Private|Friend)\s){0,1}(Static\s){0,1}(Function|Sub)\s{0,1}[a-zA-Z0-9_]*?\s{0,1}\([\S\s]*?End\s(Function|Sub)/gmi
+	let procedureRegex = /((Public|Private|Friend)\s){0,1}(Static\s){0,1}(Function|Sub|Property\sGet|Property\sLet|Property\sSet)\s{0,1}[a-zA-Z0-9_]*?\s{0,1}\([\S\s]*?End\s(Function|Sub|Property)/gmi
 	
 	let procedureMatches = vbaSourceCode.match(procedureRegex);
 
@@ -365,6 +361,17 @@ function generateVbaModuleDocumentationObject(vbaSourceCode) {
 }
 
 
+/**
+ * This function generates the Module Level tag documentation object
+ *
+ * @author Anthony Mancini
+ * @version 1.0.0
+ * @license MIT
+ * @todo add this to a class at some point
+ * @param {string} vbaCodeFragment is the remaining VBA source code after removing
+ * procedures from it
+ * @returns {Object} a Module Documentation Object
+ */
 function generateXDocGenTagsObject(vbaCodeFragment) {
 	
 	let documentationTagRegex = /\'\@[a-zA-Z0-9_]*?[:][\S\s]*?\n/gmi
